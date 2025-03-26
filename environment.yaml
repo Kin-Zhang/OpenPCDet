@@ -1,0 +1,32 @@
+name: openpcdet
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10
+  - pytorch::pytorch=2.4.0
+  - pytorch::torchvision
+  - pytorch::pytorch-cuda=12.1
+  - nvidia/label/cuda-12.1.0::cuda
+  - nvidia/label/cuda-12.1.0::cuda-toolkit
+  - numba
+  - numpy
+  - pandas
+  - pip
+  - scipy
+  - tqdm
+  - h5py
+  - wandb
+  - omegaconf
+  - hydra-core
+  - fire
+  - pip:
+    - open3d==0.18.0
+    - spconv-cu117==2.3.6
+    - opencv-python
+    - av2
+    - kornia==0.5.8
+    - numpy==1.26.4
+
+# numpy version:https://github.com/open-mmlab/OpenPCDet/issues/1642
+# kornia version: https://github.com/open-mmlab/OpenPCDet/issues/1583

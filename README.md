@@ -1,3 +1,50 @@
+This repo is modified by Kin, check the commit to see the modification.
+
+
+
+Tutorials:
+
+- **ROS Inference**: [https://github.com/Kin-Zhang/OpenPCDet_ros](https://github.com/Kin-Zhang/OpenPCDet_ros)
+
+- Chinese Video: [https://www.bilibili.com/video/BV1xe4y1j72q](https://www.bilibili.com/video/BV1xe4y1j72q)
+
+- Chiese Blog: [【点云检测】OpenPCDet 教程系列 安装 与 ROS运行](https://www.cnblogs.com/kin-zhang/p/17002980.html))
+
+
+
+## Quick Installation
+
+<sup> Date I tried following: 2025-03-26 13:29, with good network it takes me around 15 mins to setup all following.</sup>
+
+There is an [environment.yaml](environment.yaml) file for conda environment. You can create a conda environment by running the following command, it included the necessary cuda and nvcc compiler also. Reference the [conda/mamba] installation to [OpenSceneFlow/docs](https://github.com/KTH-RPL/OpenSceneFlow/blob/main/assets/README.md#system).
+
+```bash
+mamba env create -f environment.yml
+```
+
+Then activate the environment and install the openpcdet package:
+
+```bash
+conda activate openpcdet
+python setup.py develop
+```
+
+## Quick Demo
+
+Download the pretrained model and the demo data (I added into data folder):
+
+```bash
+cd tools
+python3 demo.py --cfg_file cfgs/kitti_models/pv_rcnn.yaml \
+    --ckpt /home/kin/model_zoo/pv_rcnn_8369.pth \
+    --data_path ../data/000000.bin
+```
+
+---
+<details>
+  <summary>[Please check the official repo or below origin read for more detail]</summary>
+
+
 <img src="docs/open_mmlab.png" align="right" width="30%">
 
 # OpenPCDet
