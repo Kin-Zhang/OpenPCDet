@@ -61,6 +61,18 @@ class H5Dataset(DatasetTemplate):
     def __len__(self):
         return len(self.data_index)
 
+    def egopts_mask(self, pts, min_bound=[-9.5, -3/2, 0], max_bound=[5, 2.760004/2, 5]):
+        """
+        Input:
+            pts: (N, 3)
+        Output:
+            mask: (N, ) indicate the points that are outside the egopts
+        """
+        mask = ((pts[:, 0] > min_bound[0]) & (pts[:, 0] < max_bound[0])
+                & (pts[:, 1] > min_bound[1]) & (pts[:, 1] < max_bound[1])
+                & (pts[:, 2] > min_bound[2]) & (pts[:, 2] < max_bound[2]))
+        return ~mask
+    
     def __getitem__(self, index):
 
         scene_id, timestamp = self.data_index[index]
@@ -71,7 +83,18 @@ class H5Dataset(DatasetTemplate):
         with h5py.File(os.path.join(self.rootdir, f'{scene_id}.h5'), 'r') as f:
             key = str(timestamp)
             pc = f[key]['lidar'][:]
-            # pc[:, 2] -= 1.73 # only need for shift Scania data to the same level as KITTI
+
+            # for scania only ----->
+            ego_mask = ~self.egopts_mask(pc)
+            gm = f[key]['ground_mask'][:]
+            ego_mask = ego_mask | gm
+            pc = pc[~ego_mask]
+            pc[:, 2] -= 1.73 # only need for shift Scania data to the same level as KITTI
+            # for scania only ----->
+
+            # others.
+            # ego_maske = np.zeros((pc.shape[0], 1), dtype=np.bool_) # if not scania we don't need remove ground.
+
             if self.flow_mode in f[key]:
                 # print('Using flow mode:', self.flow_mode)
                 pose0 = f[key]['pose'][:]
@@ -80,10 +103,9 @@ class H5Dataset(DatasetTemplate):
                 pose_flow = pc[:, :3] @ ego_pose[:3, :3].T + ego_pose[:3, 3] - pc[:, :3]
                 dt0_raw = f[key]['lidar_dt'][:]
 
-                flow = f[key][self.flow_mode][:] - pose_flow
-                # we want to see the last frame. dts: (N,1) Nanosecond offsets _from_ the start of the sweep.
-                dt0 = max(dt0_raw) - dt0_raw
-                ref_pc = pc[:,:3] + (flow/0.1) * dt0[:, None]
+                flow = f[key][self.flow_mode][:][~ego_mask] - pose_flow
+                dt0 = max(dt0_raw) - dt0_raw # we want to see the last frame. dts: (N,1) Nanosecond offsets _from_ the start of the sweep.
+                ref_pc = pc[:,:3] + (flow/0.1) * dt0[:, None][~ego_mask]
             else:
                 ref_pc = pc[:,:3]
 
@@ -98,6 +120,8 @@ class H5Dataset(DatasetTemplate):
 
         input_dict = {
             'points': pc,
+            # 'scene_id': scene_id,
+            # 'timestamp': timestamp,
             'frame_id': index,
         }
 
@@ -112,6 +136,7 @@ def parse_config():
     parser.add_argument('--data_path', type=str, default='demo_data',
                         help='specify the point cloud data file or directory')
     parser.add_argument('--ckpt', type=str, default=None, help='specify the pretrained model')
+    parser.add_argument('--start_id', type=int, default=0)
     parser.add_argument("--flow_mode", type=str, default='raw')
 
     args = parser.parse_args()
@@ -136,8 +161,10 @@ def main():
     model.cuda()
     model.eval()
     with torch.no_grad():
-        for idx, data_dict in enumerate(demo_dataset):
-            logger.info(f'Visualized sample index: \t{idx + 1}')
+        # for idx, data_dict in enumerate(demo_dataset):
+        for idx in range(args.start_id, len(demo_dataset)):
+            logger.info(f'Visualized data_id: \t{idx}, scene_id: {demo_dataset.data_index[idx][0]}, timestamp: {demo_dataset.data_index[idx][1]}')
+            data_dict = demo_dataset[idx]
             data_dict = demo_dataset.collate_batch([data_dict])
             load_data_to_gpu(data_dict)
             pred_dicts, _ = model.forward(data_dict)
