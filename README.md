@@ -26,12 +26,14 @@ Then activate the environment and install the openpcdet package:
 
 ```bash
 conda activate openpcdet
+# I need this export to make it work
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/kin/miniforge3/lib
 python setup.py develop
 ```
 
 ## Quick Demo
 
-Download the pretrained model and the demo data (I added into data folder):
+Download [the pretrained model](https://drive.google.com/file/d/1lIOq4Hxr0W3qsX83ilQv0nk1Cls6KAr-/view?usp=sharing) and the demo data (I added it into data folder):
 
 ```bash
 cd tools
@@ -39,6 +41,15 @@ python3 demo.py --cfg_file cfgs/kitti_models/pv_rcnn.yaml \
     --ckpt /home/kin/model_zoo/pv_rcnn_8369.pth \
     --data_path ../data/000000.bin
 ```
+
+Around 5 seconds with 2.1GB GPU Memory cost, I run on my laptop with GTX 1660Ti (6GB).
+![](docs/demo2.png)
+
+
+## Issues I met
+
+- I need this export to make it work: `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/kin/miniforge3/lib`
+- `kornia==0.5.8` and `numpy==1.26.4` need set to limited version, I wrote down in the enviroment.yaml with issue link mentioned.
 
 ---
 <details>
