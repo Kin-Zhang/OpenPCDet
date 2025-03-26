@@ -108,6 +108,7 @@ def main():
 
             if not OPEN3D_FLAG:
                 mlab.show(stop=True)
+            # TODO(Ajinkya): save the bbx
 
     logger.info('Demo done.')
 

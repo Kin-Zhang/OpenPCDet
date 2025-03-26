@@ -45,6 +45,12 @@ python3 demo.py --cfg_file cfgs/kitti_models/pv_rcnn.yaml \
 Around 5 seconds with 2.1GB GPU Memory cost, I run on my laptop with GTX 1660Ti (6GB).
 ![](docs/demo2.png)
 
+In our h5file please run, refer h5 file in [OpenSceneFlow/dataprocess](https://github.com/KTH-RPL/OpenSceneFlow/tree/main/dataprocess):
+```bash
+python3 h5sf.py --cfg_file cfgs/kitti_models/pv_rcnn.yaml \
+    --ckpt /home/kin/model_zoo/pv_rcnn_8369.pth \
+    --data_path /home/kin/data/av2/h5py/demo/train
+```
 
 ## Issues I met
 
