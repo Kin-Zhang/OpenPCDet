@@ -73,42 +73,63 @@ class H5Dataset(DatasetTemplate):
                 & (pts[:, 2] > min_bound[2]) & (pts[:, 2] < max_bound[2]))
         return ~mask
     
-    def __getitem__(self, index):
+    def __getitem__(self, index, current_flow_mode=None):
 
         scene_id, timestamp = self.data_index[index]
-        scene_id1, timestamp1 = self.data_index[index+1]
-        if scene_id != scene_id1:
-            index -= 1
-            return self.__getitem__(index)
+        if index+1 < len(self.data_index):
+            scene_id1, timestamp1 = self.data_index[index+1]
+            if scene_id != scene_id1:
+                index -= 1
+                return self.__getitem__(index, current_flow_mode=current_flow_mode)
         with h5py.File(os.path.join(self.rootdir, f'{scene_id}.h5'), 'r') as f:
             key = str(timestamp)
             pc = f[key]['lidar'][:]
+
+            delta_t = f[key]['lidar_dt'][:]
 
             # for scania only ----->
             ego_mask = ~self.egopts_mask(pc)
             gm = f[key]['ground_mask'][:]
             ego_mask = ego_mask | gm
-            pc = pc[~ego_mask]
-            pc[:, 2] -= 1.73 # only need for shift Scania data to the same level as KITTI
+            pc = pc[~ego_mask] 
+            
             # for scania only ----->
-
+            pc[:, 2] -= 1.73 # only need for shift Scania data to the same level as KITTI
+            delta_t = delta_t[~ego_mask]
+            
             # others.
             # ego_maske = np.zeros((pc.shape[0], 1), dtype=np.bool_) # if not scania we don't need remove ground.
 
-            if self.flow_mode in f[key]:
-                # print('Using flow mode:', self.flow_mode)
+            if current_flow_mode is not None:
+                flow_mode = current_flow_mode
+            else:
+                flow_mode = self.flow_mode
+            if flow_mode in f[key]:
+                # print('Using flow mode:', flow_mode)
                 pose0 = f[key]['pose'][:]
                 pose1 = f[str(timestamp1)]['pose'][:]
                 ego_pose = np.linalg.inv(pose1) @ pose0
                 pose_flow = pc[:, :3] @ ego_pose[:3, :3].T + ego_pose[:3, 3] - pc[:, :3]
                 dt0_raw = f[key]['lidar_dt'][:]
 
-                flow = f[key][self.flow_mode][:][~ego_mask] - pose_flow
+                flow = f[key][flow_mode][:][~ego_mask] - pose_flow
                 dt0 = max(dt0_raw) - dt0_raw # we want to see the last frame. dts: (N,1) Nanosecond offsets _from_ the start of the sweep.
                 ref_pc = pc[:,:3] + (flow/0.1) * dt0[:, None][~ego_mask]
             else:
                 ref_pc = pc[:,:3]
 
+            pred_boxes = np.zeros((0, 7), dtype=np.float32)
+            pred_scores = np.zeros((0,), dtype=np.float32)
+            pred_labels = np.zeros((0,), dtype=np.int32)
+            if 'bbox_'+flow_mode in f[key]:
+                pred_boxes = f[key]['bbox_'+flow_mode][:]
+            if 'bbox_score_'+flow_mode in f[key]:
+                if np.isscalar(f[key]['bbox_score_'+flow_mode][()]):
+                    pred_scores = np.array([f[key]['bbox_score_'+flow_mode][()]])
+                else:
+                    pred_scores = f[key]['bbox_score_'+flow_mode][:]
+            if 'bbox_labels_'+flow_mode in f[key]:
+                pred_labels = f[key]['bbox_labels_'+flow_mode][:]
         pc[:, :3] = ref_pc
         if pc.shape[1] == 4:
             # normalize intensity
@@ -118,17 +139,36 @@ class H5Dataset(DatasetTemplate):
             print("No intensity channel found! It may be really worse result here.")
             pc = np.hstack([pc, np.zeros((pc.shape[0], 1), dtype=np.float32)])
 
-        input_dict = {
-            'points': pc,
-            # 'scene_id': scene_id,
-            # 'timestamp': timestamp,
-            'frame_id': index,
-        }
+        # Ajinkya: nuscenes expects delta_t: comment this out for kitti etc.
+        pc = np.hstack([pc, delta_t[:, None]])
 
+        input_dict = {
+                'points': pc,
+                # 'scene_id': scene_id,
+                # 'timestamp': timestamp,
+                'frame_id': index,
+                'pred_boxes': pred_boxes,
+                'pred_scores': pred_scores,
+                'pred_labels': pred_labels,
+            }
         data_dict = self.prepare_data(data_dict=input_dict)
         return data_dict
 
-
+    def save_bbox(self, index, pred_boxes, pred_scores=None, pred_labels=None):
+        scene_id, timestamp = self.data_index[index]
+        
+        with h5py.File(os.path.join(self.rootdir, f'{scene_id}.h5'), 'r+') as f:
+            key = str(timestamp)
+            if 'bbox_'+self.flow_mode in f[key]:
+                del f[key]['bbox_'+self.flow_mode]
+            if 'bbox_score_'+self.flow_mode in f[key]:
+                del f[key]['bbox_score_'+self.flow_mode]
+            if 'bbox_labels_'+self.flow_mode in f[key]:
+                del f[key]['bbox_labels_'+self.flow_mode]
+            f[key].create_dataset('bbox_'+self.flow_mode, data=np.array(pred_boxes).astype(np.float32))
+            f[key].create_dataset('bbox_score_'+self.flow_mode, data=np.array(pred_scores).astype(np.float32))
+            f[key].create_dataset('bbox_labels_'+self.flow_mode, data=np.array(pred_labels).astype(np.int32))
+            
 def parse_config():
     parser = argparse.ArgumentParser(description='arg parser')
     parser.add_argument('--cfg_file', type=str, default='cfgs/kitti_models/second.yaml',
@@ -138,6 +178,8 @@ def parse_config():
     parser.add_argument('--ckpt', type=str, default=None, help='specify the pretrained model')
     parser.add_argument('--start_id', type=int, default=0)
     parser.add_argument("--flow_mode", type=str, default='raw')
+    parser.add_argument("--vis", type=bool, default=False)
+    parser.add_argument("--save", type=bool, default=True)
 
     args = parser.parse_args()
 
@@ -169,12 +211,15 @@ def main():
             load_data_to_gpu(data_dict)
             pred_dicts, _ = model.forward(data_dict)
 
-            V.draw_scenes(
-                points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
-                ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
-            )
+            if args.vis:
+                V.draw_scenes(
+                    points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
+                    ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
+                )
             
-            # save the bbx maybe?
+            if args.save:
+                # save the bbx
+                demo_dataset.save_bbox(idx, pred_boxes=pred_dicts[0]['pred_boxes'].cpu().numpy(), pred_scores=pred_dicts[0]['pred_scores'].cpu().numpy(), pred_labels=pred_dicts[0]['pred_labels'].cpu().numpy())
             
     logger.info('Demo done.')
 
