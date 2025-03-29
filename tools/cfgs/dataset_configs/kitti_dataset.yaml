@@ -1,7 +1,9 @@
 DATASET: 'KittiDataset'
 DATA_PATH: '../data/kitti'
 
-POINT_CLOUD_RANGE: [-50, -50, -3, 70.4, 40, 1]
+# FIXME: check why full view is not working.
+# POINT_CLOUD_RANGE: [-50, -50, -3, 70.4, 40, 1]
+POINT_CLOUD_RANGE: [0, -40, -3, 70.4, 40, 1]
 
 DATA_SPLIT: {
     'train': train,
