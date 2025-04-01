@@ -85,8 +85,14 @@ class H5Dataset(DatasetTemplate):
             key = str(timestamp)
             pc = f[key]['lidar'][:]
 
-            delta_t = f[key]['lidar_dt'][:]
-
+            if 'lidar_dt' in f[key]:
+                delta_t = f[key]['lidar_dt'][:]
+            else:
+                delta_t = np.zeros((pc.shape[0], 1), dtype=np.float32)
+            if 'lidar_id' in f[key]:
+                lidar_id = f[key]['lidar_id'][:]
+            else:
+                lidar_id = np.zeros((pc.shape[0], 1), dtype=np.int32)        
             # for scania only ----->
             ego_mask = ~self.egopts_mask(pc)
             gm = f[key]['ground_mask'][:]
@@ -96,7 +102,8 @@ class H5Dataset(DatasetTemplate):
             # for scania only ----->
             pc[:, 2] -= 1.73 # only need for shift Scania data to the same level as KITTI
             delta_t = delta_t[~ego_mask]
-            
+            lidar_id = lidar_id[~ego_mask]
+
             # others.
             # ego_maske = np.zeros((pc.shape[0], 1), dtype=np.bool_) # if not scania we don't need remove ground.
 
@@ -150,8 +157,14 @@ class H5Dataset(DatasetTemplate):
                 'pred_boxes': pred_boxes,
                 'pred_scores': pred_scores,
                 'pred_labels': pred_labels,
+                'lidar_id': lidar_id,
             }
-        data_dict = self.prepare_data(data_dict=input_dict)
+        
+        if current_flow_mode == None:
+            # not needed for visualization
+            data_dict = self.prepare_data(data_dict=input_dict)
+        else:
+            data_dict = input_dict
         return data_dict
 
     def save_bbox(self, index, pred_boxes, pred_scores=None, pred_labels=None):

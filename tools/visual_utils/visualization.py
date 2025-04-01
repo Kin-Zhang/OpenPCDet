@@ -27,6 +27,16 @@ from tools.visual_utils.open3d_vis_utils import translate_boxes_to_open3d_instan
 
 VIEW_FILE = f"av2.json"
 
+def hex_to_rgb(hex_color):
+    hex_color = hex_color.lstrip("#")
+    return tuple(int(hex_color[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+
+color_map_hex = ['#a6cee3', '#de2d26', '#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00',\
+                 '#cab2d6','#6a3d9a','#ffff99','#b15928', '#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3',\
+                 '#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5','#ffed6f']
+
+color_map = [hex_to_rgb(color) for color in color_map_hex]
+
 class MyVisualizer:
     def __init__(self, view_file=None, window_title="Default", save_folder="logs/imgs"):
         self.params = None
@@ -195,7 +205,7 @@ def parse_config():
                         help='specify the point cloud data file or directory')
     parser.add_argument('--start_id', type=int, default=0)
     parser.add_argument("--flow_mode", type=list, default=['raw', 'flow'])
-    parser.add_argument("--tone", type=str, default='dark')
+    parser.add_argument("--tone", type=str, default='bright')
     parser.add_argument("--point_size", type=float, default=3.0)
     
     args = parser.parse_args()
@@ -221,8 +231,8 @@ def main():
     for v in o3d_vis.vis:
         opt = v.get_render_option()
         if args.tone == 'bright':
-            background_color = np.asarray([216, 216, 216]) / 255.0  # offwhite
-            # background_color = np.asarray([1, 1, 1])
+            # background_color = np.asarray([216, 216, 216]) / 255.0  # offwhite
+            background_color = np.asarray([1, 1, 1])
             pcd_color = [0.25, 0.25, 0.25]
         elif args.tone == 'dark':
             background_color = np.asarray([80/255, 90/255, 110/255])  # dark
@@ -233,21 +243,27 @@ def main():
 
     data_id = args.start_id
     pbar = tqdm(range(0, len(dataset)))
-    color = (0, 1, 0)
     while data_id >= 0 and data_id < len(dataset):
         pcd_list = []
         for mode in args.flow_mode:
             # data = dataset[data_id]
             data = dataset.__getitem__(data_id, current_flow_mode=mode)
-
             pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(data['points'][:, :3])
+            for vis_id in np.unique(data['lidar_id']):
+                mask = vis_id == data['lidar_id']
+                single_pcd = o3d.geometry.PointCloud()
+                single_pcd.points = o3d.utility.Vector3dVector(data['points'][mask, :3])
+                single_pcd.paint_uniform_color(color_map[(vis_id) % len(color_map)])
+                pcd += single_pcd
+            # pcd.points = o3d.utility.Vector3dVector(data['points'][:, :3])
+            # pcd.colors = o3d.utility.Vector3dVector(np.array([hex_to_rgb(color_map_hex[id]) for id in data['lidar_id']]))
             # pcd.paint_uniform_color([1.0, 1.0, 1.0])
+            
             line_set_list = []
             for i in range(data['pred_boxes'].shape[0]):
-                if data['pred_scores'][i] > 0.0:
+                if data['pred_scores'][i] > 0.3:
                     line_set, _ = translate_boxes_to_open3d_instance(data['pred_boxes'][i])
-                    line_set.paint_uniform_color(color)
+                    line_set.paint_uniform_color((1, 0, 0))
                     line_set_list.append(line_set)
             pcd_list.append([pcd, o3d.geometry.TriangleMesh.create_coordinate_frame(size=2)]+line_set_list)
             
