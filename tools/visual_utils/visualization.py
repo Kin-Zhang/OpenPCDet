@@ -25,15 +25,13 @@ from pcdet.utils import common_utils
 from pathlib import Path
 from tools.visual_utils.open3d_vis_utils import translate_boxes_to_open3d_instance
 
-VIEW_FILE = f"av2.json"
+VIEW_FILE = f"av2_top.json"
 
 def hex_to_rgb(hex_color):
     hex_color = hex_color.lstrip("#")
     return tuple(int(hex_color[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
 
-color_map_hex = ['#a6cee3', '#de2d26', '#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00',\
-                 '#cab2d6','#6a3d9a','#ffff99','#b15928', '#8dd3c7','#ffffb3','#bebada','#fb8072','#80b1d3',\
-                 '#fdb462','#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5','#ffed6f']
+color_map_hex = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#e6ab02"]
 
 color_map = [hex_to_rgb(color) for color in color_map_hex]
 
@@ -261,7 +259,7 @@ def main():
             
             line_set_list = []
             for i in range(data['pred_boxes'].shape[0]):
-                if data['pred_scores'][i] > 0.3:
+                if data['pred_scores'][i] > 0.25:
                     line_set, _ = translate_boxes_to_open3d_instance(data['pred_boxes'][i])
                     line_set.paint_uniform_color((1, 0, 0))
                     line_set_list.append(line_set)
@@ -269,9 +267,9 @@ def main():
             
         o3d_vis.update(pcd_list)
 
-        # now_scene_id = data['scene_id']
-        # pbar.set_description(f"id: {data_id}, scene_id: {now_scene_id}, timestamp: {data['timestamp']}")
-        pbar.set_description(f"id: {data_id}")
+        now_scene_id = data['scene_id']
+        pbar.set_description(f"id: {data_id}, scene_id: {now_scene_id}, timestamp: {data['timestamp']}")
+        # pbar.set_description(f"id: {data_id}")
 
         data_id += o3d_vis.playback_direction
         pbar.update(o3d_vis.playback_direction)

@@ -164,6 +164,10 @@ class H5Dataset(DatasetTemplate):
             # not needed for visualization
             data_dict = self.prepare_data(data_dict=input_dict)
         else:
+            input_dict.update(
+                scene_id=scene_id,
+                timestamp=timestamp,
+            )
             data_dict = input_dict
         return data_dict
 
